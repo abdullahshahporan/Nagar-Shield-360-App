@@ -32,6 +32,14 @@ class _OperationsLabState extends State<OperationsLab> {
   bool surveyComplete = false;
   bool rain = false;
   bool crisis = false;
+  bool resourceReady = true;
+  bool watchScheduled = false;
+  bool watchAlert = false;
+  bool showPublicUpdate = false;
+  bool sceneCleared = false;
+  int responseModeIndex = 0;
+  final Map<String, String> partnerStatuses = {};
+  final Set<String> responderAcknowledged = {};
   String? selectedAssetId;
   int? focusTask;
   int mediaIndex = 0;
@@ -43,16 +51,28 @@ class _OperationsLabState extends State<OperationsLab> {
   @override
   void initState() {
     super.initState();
-    rootBundle.loadString('assets/operations-seed.json').then((value) {
-      if (mounted) {
-        setState(() {
-          seed = jsonDecode(value) as Map<String, dynamic>;
-          _resetCase();
+    rootBundle
+        .load('assets/operations-seed.json')
+        .then((bytes) {
+          if (mounted) {
+            setState(() {
+              seed =
+                  jsonDecode(
+                        utf8.decode(
+                          bytes.buffer.asUint8List(
+                            bytes.offsetInBytes,
+                            bytes.lengthInBytes,
+                          ),
+                        ),
+                      )
+                      as Map<String, dynamic>;
+              _resetCase();
+            });
+          }
+        })
+        .catchError((Object error) {
+          if (mounted) setState(() => loadError = error.toString());
         });
-      }
-    }).catchError((Object error) {
-      if (mounted) setState(() => loadError = error.toString());
-    });
   }
 
   String t(String en, String bn) => widget.bangla ? bn : en;
@@ -61,7 +81,8 @@ class _OperationsLabState extends State<OperationsLab> {
     return (text[widget.bangla ? 'bn' : 'en'] ?? '').toString();
   }
 
-  Map<String, dynamic> obj(dynamic value) => Map<String, dynamic>.from(value as Map);
+  Map<String, dynamic> obj(dynamic value) =>
+      Map<String, dynamic>.from(value as Map);
   List<dynamic> list(dynamic value) => List<dynamic>.from(value as List);
   Map<String, dynamic> get current => obj(list(seed!['cases'])[caseIndex]);
 
@@ -75,16 +96,22 @@ class _OperationsLabState extends State<OperationsLab> {
 
   int evidenceBoost(String optionId) => list(current['media'])
       .map(obj)
-      .where((media) =>
-          usedEvidence.contains(media['id']) && media['optionId'] == optionId)
+      .where(
+        (media) =>
+            usedEvidence.contains(media['id']) && media['optionId'] == optionId,
+      )
       .fold(0, (total, media) => total + (media['boost'] as num).toInt());
 
   int recommendationScore(Map<String, dynamic> option) =>
-      (score(option) + evidenceBoost(option['id'].toString())).clamp(0, 100).toInt();
+      (score(option) + evidenceBoost(option['id'].toString()))
+          .clamp(0, 100)
+          .toInt();
 
   List<Map<String, dynamic>> get ranked {
     final values = list(current['options']).map(obj).toList();
-    values.sort((a, b) => recommendationScore(b).compareTo(recommendationScore(a)));
+    values.sort(
+      (a, b) => recommendationScore(b).compareTo(recommendationScore(a)),
+    );
     return values;
   }
 
@@ -102,16 +129,28 @@ class _OperationsLabState extends State<OperationsLab> {
     surveyComplete = false;
     rain = false;
     crisis = false;
+    resourceReady = true;
+    watchScheduled = false;
+    watchAlert = false;
+    showPublicUpdate = false;
+    sceneCleared = false;
+    responseModeIndex = 0;
+    partnerStatuses.clear();
+    responderAcknowledged.clear();
     focusTask = null;
     mediaIndex = 0;
     final item = current;
-    selectedAssetId = obj(list(obj(item['map'])['assets']).first)['id'].toString();
+    selectedAssetId = obj(
+      list(obj(item['map'])['assets']).first,
+    )['id'].toString();
     usedEvidence
       ..clear()
-      ..addAll(list(item['media'])
-          .map(obj)
-          .where((media) => media['initiallyUsed'] == true)
-          .map((media) => media['id'].toString()));
+      ..addAll(
+        list(item['media'])
+            .map(obj)
+            .where((media) => media['initiallyUsed'] == true)
+            .map((media) => media['id'].toString()),
+      );
     assigned.clear();
     done.clear();
     checked.clear();
@@ -219,7 +258,10 @@ class _OperationsLabState extends State<OperationsLab> {
               ),
               const SizedBox(height: 8),
               Text(
-                t('From signals to a verified result', 'খবর থেকে যাচাই করা ফল পর্যন্ত'),
+                t(
+                  'From signals to a verified result',
+                  'খবর থেকে যাচাই করা ফল পর্যন্ত',
+                ),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 23,
@@ -235,8 +277,10 @@ class _OperationsLabState extends State<OperationsLab> {
           ),
         ),
         const SizedBox(height: 16),
-        Text(t('Choose a connected city problem', 'সম্পর্কিত সমস্যা বেছে নিন'),
-            style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          t('Choose a connected city problem', 'সম্পর্কিত সমস্যা বেছে নিন'),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         const SizedBox(height: 8),
         SizedBox(
           height: 62,
@@ -276,11 +320,15 @@ class _OperationsLabState extends State<OperationsLab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${item['code']} · ${copy(item['area'])}',
-                        style: const TextStyle(color: Color(0xFF648370))),
+                    Text(
+                      '${item['code']} · ${copy(item['area'])}',
+                      style: const TextStyle(color: Color(0xFF648370)),
+                    ),
                     const SizedBox(height: 5),
-                    Text(copy(item['title']),
-                        style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      copy(item['title']),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 5),
                     Text(copy(item['story'])),
                   ],
@@ -349,37 +397,52 @@ class _OperationsLabState extends State<OperationsLab> {
       t('One place, several signals', 'এক জায়গা, কয়েকটি খবর'),
       [
         for (final raw in list(item['signals'])) ...[
-          Builder(builder: (context) {
-            final signal = obj(raw);
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const CircleAvatar(child: Icon(Icons.visibility_outlined)),
-              title: Text(source(signal['source'].toString())),
-              subtitle: Text(
-                '${copy(signal['text'])}\n${copy(signal['limit'])}',
-              ),
-              trailing: Text(signal['age'].toString(),
-                  style: const TextStyle(fontSize: 11)),
-            );
-          }),
+          Builder(
+            builder: (context) {
+              final signal = obj(raw);
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  child: Icon(Icons.visibility_outlined),
+                ),
+                title: Text(source(signal['source'].toString())),
+                subtitle: Text(
+                  '${copy(signal['text'])}\n${copy(signal['limit'])}',
+                ),
+                trailing: Text(
+                  signal['age'].toString(),
+                  style: const TextStyle(fontSize: 11),
+                ),
+              );
+            },
+          ),
           const Divider(height: 1),
         ],
       ],
     ),
-    panel(t('REVIEW DUPLICATES', 'একই খবর মিলিয়ে দেখুন'),
-        t('Keep the sources', 'উৎসগুলো রেখে দিন'),
-        [paragraph(copy(item['duplicate']))]),
-    panel(t('ILLUSTRATIVE ASSET PATH', 'নমুনা স্থাপনা সংযোগ'),
-        t('What connects to what?', 'কোন জায়গা কোথায় যুক্ত?'), [
-      for (final asset in list(item['assetPath']).asMap().entries)
-        ListTile(
-          dense: true,
-          leading: CircleAvatar(radius: 15, child: Text('${asset.key + 1}')),
-          title: Text(asset.value.toString()),
+    panel(
+      t('REVIEW DUPLICATES', 'একই খবর মিলিয়ে দেখুন'),
+      t('Keep the sources', 'উৎসগুলো রেখে দিন'),
+      [paragraph(copy(item['duplicate']))],
+    ),
+    panel(
+      t('ILLUSTRATIVE ASSET PATH', 'নমুনা স্থাপনা সংযোগ'),
+      t('What connects to what?', 'কোন জায়গা কোথায় যুক্ত?'),
+      [
+        for (final asset in list(item['assetPath']).asMap().entries)
+          ListTile(
+            dense: true,
+            leading: CircleAvatar(radius: 15, child: Text('${asset.key + 1}')),
+            title: Text(asset.value.toString()),
+          ),
+        paragraph(
+          t(
+            'Field checks correct this map.',
+            'মাঠের তথ্য দিয়ে এই মানচিত্র ঠিক করতে হবে।',
+          ),
         ),
-      paragraph(t('Field checks correct this map.',
-          'মাঠের তথ্য দিয়ে এই মানচিত্র ঠিক করতে হবে।')),
-    ]),
+      ],
+    ),
   ];
 
   Widget mediaReview(Map<String, dynamic> item) {
@@ -397,7 +460,9 @@ class _OperationsLabState extends State<OperationsLab> {
             for (var index = 0; index < media.length; index++)
               ChoiceChip(
                 selected: mediaIndex == index,
-                label: Text('${source(media[index]['source'].toString())} · ${media[index]['age']}'),
+                label: Text(
+                  '${source(media[index]['source'].toString())} · ${media[index]['age']}',
+                ),
                 onSelected: (_) => setState(() => mediaIndex = index),
               ),
           ],
@@ -405,35 +470,43 @@ class _OperationsLabState extends State<OperationsLab> {
         const SizedBox(height: 9),
         SizedBox(
           height: 210,
-          child: LayoutBuilder(builder: (context, constraints) => Stack(
-            children: [
-              Positioned.fill(
-                child: PresetMedia(
-                  key: ValueKey(selectedMedia['id']),
-                  id: selectedMedia['preset'].toString(),
-                  isVideo: selectedMedia['kind'] == 'video',
-                  bangla: widget.bangla,
+          child: LayoutBuilder(
+            builder: (context, constraints) => Stack(
+              children: [
+                Positioned.fill(
+                  child: PresetMedia(
+                    key: ValueKey(selectedMedia['id']),
+                    id: selectedMedia['preset'].toString(),
+                    isVideo: selectedMedia['kind'] == 'video',
+                    bangla: widget.bangla,
+                  ),
                 ),
-              ),
-              Positioned(
-                left: (box[0] as num).toDouble() * constraints.maxWidth / 100,
-                top: (box[1] as num).toDouble() * 2.1,
-                width: (box[2] as num).toDouble() * constraints.maxWidth / 100,
-                height: (box[3] as num).toDouble() * 2.1,
-                child: IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0x44C4E984),
-                      border: Border.all(color: const Color(0xFFC4E984), width: 2),
+                Positioned(
+                  left: (box[0] as num).toDouble() * constraints.maxWidth / 100,
+                  top: (box[1] as num).toDouble() * 2.1,
+                  width:
+                      (box[2] as num).toDouble() * constraints.maxWidth / 100,
+                  height: (box[3] as num).toDouble() * 2.1,
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0x44C4E984),
+                        border: Border.all(
+                          color: const Color(0xFFC4E984),
+                          width: 2,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          )),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 10),
-        paragraph('${t('Sample confidence', 'নমুনা confidence')}: ${((selectedMedia['confidence'] as num) * 100).round()}% · ${selectedMedia['timeRange']}'),
+        paragraph(
+          '${t('Sample confidence', 'নমুনা confidence')}: ${((selectedMedia['confidence'] as num) * 100).round()}% · ${selectedMedia['timeRange']}',
+        ),
         paragraph(copy(selectedMedia['finding'])),
         paragraph('${t('Limit', 'সীমা')}: ${copy(selectedMedia['limit'])}'),
         CheckboxListTile(
@@ -449,233 +522,634 @@ class _OperationsLabState extends State<OperationsLab> {
             done.clear();
             checked.clear();
           }),
-          title: Text(t('Use this evidence in the recommendation',
-              'এই evidence পরামর্শে ধরুন')),
+          title: Text(
+            t(
+              'Use this evidence in the recommendation',
+              'এই evidence পরামর্শে ধরুন',
+            ),
+          ),
         ),
-        paragraph(t(
-          'Boxes and confidence are seeded examples, not live AI inference.',
-          'box ও confidence নমুনা; লাইভ AI শনাক্তকরণ নয়।',
-        )),
+        paragraph(
+          t(
+            'Boxes and confidence are seeded examples, not live AI inference.',
+            'box ও confidence নমুনা; লাইভ AI শনাক্তকরণ নয়।',
+          ),
+        ),
       ],
     );
   }
 
   List<Widget> decide(Map<String, dynamic> item) => [
-    panel(t('HYPOTHESIS · HUMAN CHECK', 'ধারণা · মানুষের যাচাই'),
-        copy(item['hypothesis']), [
-      paragraph(copy(item['reason'])),
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: mint,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(copy(item['fieldCheck'])),
-      ),
-      const SizedBox(height: 9),
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF2DF),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(usedEvidence.isEmpty
-            ? t('No footage was accepted. Check the site before setting priority.',
-                'কোনো footage গ্রহণ করা হয়নি। অগ্রাধিকার দেওয়ার আগে মাঠে দেখুন।')
-            : list(item['media']).map(obj).any((media) =>
-                    usedEvidence.contains(media['id']) &&
-                    (media['confidence'] as num) < .7)
-                ? t('Some accepted evidence is uncertain or old. Review the limits.',
-                    'গ্রহণ করা কিছু evidence অনিশ্চিত বা পুরোনো। সীমা দেখে সিদ্ধান্ত নিন।')
-                : t('Footage still cannot confirm the root cause without a site check.',
-                    'মাঠে না দেখে footage দিয়ে মূল কারণ নিশ্চিত করা যায় না।')),
-      ),
-    ]),
-    panel(t('EXPLAINED PRIORITY', 'কারণসহ অগ্রাধিকার'),
-        t('Where should the team check first?', 'দল আগে কোথায় দেখবে?'), [
-      paragraph(t(
-        'Illustrative score: reach 40%, safety 30%, recurrence 20%, access 10%, plus small adjustments from reviewed footage. An officer may override it.',
-        'নমুনা তুলনা: প্রভাব ৪০%, নিরাপত্তা ৩০%, পুনরাবৃত্তি ২০%, প্রবেশ ১০%; review করা footage থেকে ছোট পরিবর্তন যোগ হয়। কর্মকর্তা চাইলে বদলাতে পারেন।',
-      )),
-      for (final option in ranked)
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(
-            selected['id'] == option['id']
-                ? Icons.radio_button_checked
-                : Icons.radio_button_unchecked,
-            color: const Color(0xFF267956),
+    panel(
+      t('HYPOTHESIS · HUMAN CHECK', 'ধারণা · মানুষের যাচাই'),
+      copy(item['hypothesis']),
+      [
+        paragraph(copy(item['reason'])),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: mint,
+            borderRadius: BorderRadius.circular(10),
           ),
-          title: Text('${copy(option['title'])} · ${recommendationScore(option)}/100'),
-          subtitle: Text('${copy(option['why'])}\n${t('Base', 'মূল')} ${score(option)} + evidence ${evidenceBoost(option['id'].toString())}'),
-          onTap: () => setState(() {
-            choice = option['id'].toString();
-            approved = false;
-            assigned.clear();
-            done.clear();
-            checked.clear();
-          }),
+          child: Text(copy(item['fieldCheck'])),
         ),
-      const Divider(),
-      Text(t('Evidence behind this choice', 'এই পছন্দের পেছনের evidence'),
-          style: const TextStyle(fontWeight: FontWeight.w800)),
-      for (final raw in list(item['media']).map(obj).where((media) =>
-          usedEvidence.contains(media['id']) &&
-          media['optionId'] == selected['id']))
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text('+${raw['boost']} · ${copy(raw['finding'])}'),
-          subtitle: Text('${source(raw['source'].toString())}: ${copy(raw['limit'])}'),
+        const SizedBox(height: 9),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF2DF),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            usedEvidence.isEmpty
+                ? t(
+                    'No footage was accepted. Check the site before setting priority.',
+                    'কোনো footage গ্রহণ করা হয়নি। অগ্রাধিকার দেওয়ার আগে মাঠে দেখুন।',
+                  )
+                : list(item['media'])
+                      .map(obj)
+                      .any(
+                        (media) =>
+                            usedEvidence.contains(media['id']) &&
+                            (media['confidence'] as num) < .7,
+                      )
+                ? t(
+                    'Some accepted evidence is uncertain or old. Review the limits.',
+                    'গ্রহণ করা কিছু evidence অনিশ্চিত বা পুরোনো। সীমা দেখে সিদ্ধান্ত নিন।',
+                  )
+                : t(
+                    'Footage still cannot confirm the root cause without a site check.',
+                    'মাঠে না দেখে footage দিয়ে মূল কারণ নিশ্চিত করা যায় না।',
+                  ),
+          ),
         ),
-      paragraph(t('These are reviewable suggestions, not a validated risk model.',
-          'এগুলো যাচাইযোগ্য পরামর্শ, যাচাইকৃত risk model নয়।')),
-    ]),
+      ],
+    ),
+    panel(
+      t('EXPLAINED PRIORITY', 'কারণসহ অগ্রাধিকার'),
+      t('Where should the team check first?', 'দল আগে কোথায় দেখবে?'),
+      [
+        paragraph(
+          t(
+            'Illustrative score: reach 40%, safety 30%, recurrence 20%, access 10%, plus small adjustments from reviewed footage. An officer may override it.',
+            'নমুনা তুলনা: প্রভাব ৪০%, নিরাপত্তা ৩০%, পুনরাবৃত্তি ২০%, প্রবেশ ১০%; review করা footage থেকে ছোট পরিবর্তন যোগ হয়। কর্মকর্তা চাইলে বদলাতে পারেন।',
+          ),
+        ),
+        for (final option in ranked)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              selected['id'] == option['id']
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: const Color(0xFF267956),
+            ),
+            title: Text(
+              '${copy(option['title'])} · ${recommendationScore(option)}/100',
+            ),
+            subtitle: Text(
+              '${copy(option['why'])}\n${t('Base', 'মূল')} ${score(option)} + evidence ${evidenceBoost(option['id'].toString())}',
+            ),
+            onTap: () => setState(() {
+              choice = option['id'].toString();
+              approved = false;
+              assigned.clear();
+              done.clear();
+              checked.clear();
+            }),
+          ),
+        const Divider(),
+        Text(
+          t('Evidence behind this choice', 'এই পছন্দের পেছনের evidence'),
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        for (final raw
+            in list(item['media'])
+                .map(obj)
+                .where(
+                  (media) =>
+                      usedEvidence.contains(media['id']) &&
+                      media['optionId'] == selected['id'],
+                ))
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text('+${raw['boost']} · ${copy(raw['finding'])}'),
+            subtitle: Text(
+              '${source(raw['source'].toString())}: ${copy(raw['limit'])}',
+            ),
+          ),
+        paragraph(
+          t(
+            'These are reviewable suggestions, not a validated risk model.',
+            'এগুলো যাচাইযোগ্য পরামর্শ, যাচাইকৃত risk model নয়।',
+          ),
+        ),
+      ],
+    ),
   ];
 
   List<Widget> mission(Map<String, dynamic> item) => [
-    panel(t('ONE CASE OWNER', 'একজন মূল দায়িত্বশীল'),
-        t('One coordinated mission', 'একটি সমন্বিত কাজ'), [
-      if (focusTask != null)
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
+    panel(
+      t('ONE CASE OWNER', 'একজন মূল দায়িত্বশীল'),
+      t('One coordinated mission', 'একটি সমন্বিত কাজ'),
+      [
+        if (watchAlert)
+          Card(
             color: const Color(0xFFFFF3DC),
-            borderRadius: BorderRadius.circular(9),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    t('Possible repeat issue', 'সম্ভাব্য পুনরাবৃত্তি'),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  Text(copy(obj(item['watch'])['reason'])),
+                  Text(
+                    t(
+                      'This is a new draft. Earlier completion does not prove the current state.',
+                      'এটি নতুন খসড়া। আগের সমাপ্তি বর্তমান অবস্থার প্রমাণ নয়।',
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          child: Text('${t('Selected on map', 'মানচিত্রে বাছা')}: '
-              '${copy(obj(list(item['tasks'])[focusTask!])['team'])} · '
-              '${copy(obj(list(item['tasks'])[focusTask!])['action'])}'),
-        ),
-      paragraph('${t('Owner', 'দায়িত্ব')}: ${copy(item['owner'])}'),
-      paragraph('${t('First check', 'আগে পরীক্ষা')}: ${copy(selected['title'])}'),
-      paragraph('${t('Resources', 'দল ও সরঞ্জাম')}: ${copy(item['resources'])}'),
-      paragraph('${t('Route', 'পথ')}: ${copy(item['route'])}'),
-      FilledButton.icon(
-        onPressed: () => setState(() {
-          approved = !approved;
-          if (!approved) {
-            assigned.clear();
-            done.clear();
-            checked.clear();
-          }
-        }),
-        icon: const Icon(Icons.verified_user_outlined),
-        label: Text(approved
-            ? t('Withdraw rehearsal approval', 'নমুনা অনুমোদন প্রত্যাহার')
-            : t('Approve sample mission', 'নমুনা mission অনুমোদন')),
-      ),
-      const SizedBox(height: 8),
-      paragraph(t('This does not assign a real task or write to Supabase.',
-          'এতে বাস্তব দায়িত্ব দেওয়া হয় না বা Supabase-এ কিছু লেখা হয় না।')),
-    ]),
-    panel(t('MAP → ASSIGNMENT → UPDATE', 'মানচিত্র → দায়িত্ব → update'),
-        '${assigned.length} ${t('assigned', 'দায়িত্ব দেওয়া')} · ${done.length} ${t('submitted', 'জমা')}', [
-      for (final entry in list(item['tasks']).asMap().entries)
-        Builder(builder: (context) {
-          final task = obj(entry.value);
-          return Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.only(bottom: 8),
+        if (focusTask != null)
+          Container(
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: focusTask == entry.key
-                  ? const Color(0xFFFFF3DC)
-                  : const Color(0xFFF2F7F1),
-              borderRadius: BorderRadius.circular(10),
+              color: const Color(0xFFFFF3DC),
+              borderRadius: BorderRadius.circular(9),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(copy(task['team']),
-                    style: const TextStyle(fontWeight: FontWeight.w800)),
-                Text(copy(task['action'])),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: approved
-                      ? () => setState(() {
-                          if (!assigned.contains(entry.key)) {
-                            assigned.add(entry.key);
-                          } else if (!done.contains(entry.key)) {
-                            done.add(entry.key);
-                          } else {
-                            done.remove(entry.key);
-                            checked.clear();
-                          }
-                        })
-                      : null,
-                  child: Text(done.contains(entry.key)
-                      ? t('Submitted · reopen', 'জমা · আবার খুলুন')
-                      : assigned.contains(entry.key)
-                          ? t('Assigned · submit update', 'দেওয়া · update দিন')
-                          : t('Assign sample team', 'নমুনা দলকে দায়িত্ব দিন')),
+            child: Text(
+              '${t('Selected on map', 'মানচিত্রে বাছা')}: '
+              '${copy(obj(list(item['tasks'])[focusTask!])['team'])} · '
+              '${copy(obj(list(item['tasks'])[focusTask!])['action'])}',
+            ),
+          ),
+        paragraph('${t('Owner', 'দায়িত্ব')}: ${copy(item['owner'])}'),
+        paragraph(
+          '${t('First check', 'আগে পরীক্ষা')}: ${copy(selected['title'])}',
+        ),
+        paragraph(
+          '${t('Resources', 'দল ও সরঞ্জাম')}: ${copy(item['resources'])}',
+        ),
+        paragraph('${t('Route', 'পথ')}: ${copy(item['route'])}'),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            '${copy(obj(item['capacity'])['resource'])} '
+            '${t('ready (sample)', 'প্রস্তুত (নমুনা)')}',
+          ),
+          value: resourceReady,
+          onChanged: (value) => setState(() {
+            resourceReady = value;
+            if (!value) {
+              final blocked = (obj(item['capacity'])['taskIndex'] as num)
+                  .toInt();
+              assigned.remove(blocked);
+              done.remove(blocked);
+              checked.clear();
+            }
+          }),
+        ),
+        if (!resourceReady) ...[
+          paragraph(copy(obj(item['capacity'])['whenMissing'])),
+          paragraph(
+            '${t('Alternative', 'বিকল্প')}: '
+            '${copy(obj(item['capacity'])['fallback'])}',
+          ),
+        ],
+        FilledButton.icon(
+          onPressed: () => setState(() {
+            approved = !approved;
+            if (!approved) {
+              assigned.clear();
+              done.clear();
+              checked.clear();
+            }
+          }),
+          icon: const Icon(Icons.verified_user_outlined),
+          label: Text(
+            approved
+                ? t('Withdraw rehearsal approval', 'নমুনা অনুমোদন প্রত্যাহার')
+                : t('Approve sample mission', 'নমুনা mission অনুমোদন'),
+          ),
+        ),
+        const SizedBox(height: 8),
+        paragraph(
+          t(
+            'This does not assign a real task or write to Supabase.',
+            'এতে বাস্তব দায়িত্ব দেওয়া হয় না বা Supabase-এ কিছু লেখা হয় না।',
+          ),
+        ),
+      ],
+    ),
+    panel(
+      t('MAP → ASSIGNMENT → UPDATE', 'মানচিত্র → দায়িত্ব → update'),
+      '${assigned.length} ${t('assigned', 'দায়িত্ব দেওয়া')} · ${done.length} ${t('submitted', 'জমা')}',
+      [
+        for (final entry in list(item['tasks']).asMap().entries)
+          Builder(
+            builder: (context) {
+              final task = obj(entry.value);
+              return Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: focusTask == entry.key
+                      ? const Color(0xFFFFF3DC)
+                      : const Color(0xFFF2F7F1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-              ],
-            ),
-          );
-        }),
-      paragraph(t('Use Incidents and Tasks for the real shared workflow.',
-          'বাস্তব shared workflow-এর জন্য ঘটনা ও কাজের পাতা ব্যবহার করুন।')),
-    ]),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      copy(task['team']),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    Text(copy(task['action'])),
+                    const SizedBox(height: 8),
+                    OutlinedButton(
+                      onPressed:
+                          approved &&
+                              (resourceReady ||
+                                  entry.key !=
+                                      (obj(item['capacity'])['taskIndex']
+                                              as num)
+                                          .toInt())
+                          ? () => setState(() {
+                              if (!assigned.contains(entry.key)) {
+                                assigned.add(entry.key);
+                              } else if (!done.contains(entry.key)) {
+                                done.add(entry.key);
+                              } else {
+                                done.remove(entry.key);
+                                checked.clear();
+                              }
+                            })
+                          : null,
+                      child: Text(
+                        !resourceReady &&
+                                entry.key ==
+                                    (obj(item['capacity'])['taskIndex'] as num)
+                                        .toInt()
+                            ? t(
+                                'Resource or permission missing',
+                                'সরঞ্জাম বা অনুমতি নেই',
+                              )
+                            : done.contains(entry.key)
+                            ? t('Submitted · reopen', 'জমা · আবার খুলুন')
+                            : assigned.contains(entry.key)
+                            ? t(
+                                'Assigned · submit update',
+                                'দেওয়া · update দিন',
+                              )
+                            : t('Assign sample team', 'নমুনা দলকে দায়িত্ব দিন'),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        paragraph(
+          t(
+            'Use Incidents and Tasks for the real shared workflow.',
+            'বাস্তব shared workflow-এর জন্য ঘটনা ও কাজের পাতা ব্যবহার করুন।',
+          ),
+        ),
+      ],
+    ),
+    if (item['responseModes'] != null) responseDesk(item),
+    coordinationBoard(item),
   ];
 
-  List<Widget> follow(Map<String, dynamic> item, bool allDone, bool allChecked) => [
-    panel(t('PREVENT · REPRIORITIZE', 'আগে ব্যবস্থা · নতুন অগ্রাধিকার'),
-        t('What changed?', 'পরিস্থিতি বদলালে কী করবেন?'), [
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(t('Heavy rain forecast', 'ভারী বৃষ্টির পূর্বাভাস')),
-        value: rain,
-        onChanged: (value) => setState(() => rain = value),
+  Widget responseDesk(Map<String, dynamic> item) {
+    final modes = list(item['responseModes']).map(obj).toList();
+    final mode = modes[responseModeIndex];
+    final units = list(mode['units']).map(obj).toList();
+    final allAcknowledged = units.every(
+      (unit) => responderAcknowledged.contains(unit['id'].toString()),
+    );
+    return panel(
+      t('RESPONDER HANDOFF · SAMPLE', 'জরুরি unit handoff · নমুনা'),
+      t(
+        'Who leads a crash or fire response?',
+        'দুর্ঘটনা বা আগুনে কে নেতৃত্ব দেবে?',
       ),
-      if (rain) paragraph(copy(item['prevention'])),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(t('Emergency rehearsal', 'জরুরি অবস্থার অনুশীলন')),
-        value: crisis,
-        onChanged: (value) => setState(() => crisis = value),
-      ),
-      if (crisis) ...[
-        paragraph(copy(item['crisis'])),
-        paragraph(t('An officer approves any change to active missions.',
-            'চলমান mission বদলালে কর্মকর্তা অনুমোদন করবেন।')),
-      ],
-    ]),
-    panel(t('CHECK THE RESULT', 'ফল যাচাই'),
-        t('Completion needs evidence', 'কাজ শেষের প্রমাণ দরকার'), [
-      for (final entry in list(item['verify']).asMap().entries)
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          value: checked.contains(entry.key),
-          onChanged: allDone
-              ? (value) => setState(() => value == true
-                  ? checked.add(entry.key)
-                  : checked.remove(entry.key))
-              : null,
-          title: Text(copy(entry.value)),
+      [
+        Wrap(
+          spacing: 7,
+          children: [
+            for (final entry in modes.asMap().entries)
+              ChoiceChip(
+                label: Text(copy(entry.value['label'])),
+                selected: responseModeIndex == entry.key,
+                onSelected: (_) => setState(() {
+                  responseModeIndex = entry.key;
+                  responderAcknowledged.clear();
+                  sceneCleared = false;
+                }),
+              ),
+          ],
         ),
-      paragraph(allChecked
-          ? t('Sample result checked. Revisit after rain or at the same busy hour.',
-              'নমুনা ফল যাচাই হয়েছে। বৃষ্টি বা একই ব্যস্ত সময়ে আবার দেখুন।')
-          : allDone
-              ? t('Now check the submitted field work.',
-                  'এখন মাঠের জমা দেওয়া কাজ যাচাই করুন।')
-              : t('First approve and submit every sample team task.',
-                  'আগে নমুনা mission অনুমোদন করে দলের সব কাজ জমা দিন।')),
-    ]),
-    panel(t('PILOT OWNERSHIP', 'পাইলটের দায়িত্ব'),
-        t('Who handles the difficult parts?', 'কঠিন বিষয়গুলো কে সামলাবে?'), [
-      for (final raw in list(seed!['stakeholders'])) ...[
-        Builder(builder: (context) {
-          final partner = obj(raw);
-          return ListTile(
+        paragraph(
+          '${t('Scene lead', 'ঘটনাস্থলের নেতৃত্ব')}: ${copy(mode['lead'])}',
+        ),
+        paragraph(copy(mode['sceneRule'])),
+        paragraph(
+          '${t('Safe route', 'নিরাপদ পথ')}: ${copy(mode['safeRoute'])}',
+        ),
+        paragraph(
+          '${t('City role', 'DNCC-এর ভূমিকা')}: ${copy(mode['cityRole'])}',
+        ),
+        paragraph(
+          '${t('Escalation', 'এস্কালেশন')}: ${copy(mode['escalation'])}',
+        ),
+        Text(
+          '${responderAcknowledged.length}/${units.length} '
+          '${t('sample acknowledgements', 'নমুনা সাড়া')}',
+        ),
+        for (final unit in units)
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: responderAcknowledged.contains(unit['id'].toString()),
+            onChanged: (value) => setState(() {
+              final id = unit['id'].toString();
+              value == true
+                  ? responderAcknowledged.add(id)
+                  : responderAcknowledged.remove(id);
+              sceneCleared = false;
+            }),
+            title: Text(copy(unit['name'])),
+            subtitle: Text(copy(unit['action'])),
+          ),
+        FilledButton.tonal(
+          onPressed: allAcknowledged && !sceneCleared
+              ? () => setState(() => sceneCleared = true)
+              : null,
+          child: Text(
+            sceneCleared
+                ? t(
+                    'Sample lead clearance recorded',
+                    'Lead unit-এর নমুনা clearance নথিভুক্ত',
+                  )
+                : t(
+                    'Record sample scene clearance by lead unit',
+                    'Lead unit-এর নমুনা clearance নথিভুক্ত করুন',
+                  ),
+          ),
+        ),
+        paragraph(
+          t(
+            'Acknowledgement is not scene clearance. DNCC resumes its own work only after the incident lead releases the area. No message is sent from this screen.',
+            'সাড়া দেওয়া মানেই ঘটনাস্থল নিরাপদ নয়। Incident lead ছাড়ার অনুমতি দেওয়ার পরেই DNCC নিজের কাজ শুরু করবে। এই screen থেকে বার্তা পাঠানো হয় না.',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget coordinationBoard(Map<String, dynamic> item) {
+    final coordination = obj(item['coordination']);
+    final partners = <Map<String, dynamic>>[
+      for (final entry in list(item['tasks']).asMap().entries)
+        {
+          'id': 'team-${entry.key}',
+          'who': obj(entry.value)['team'],
+          'action': obj(entry.value)['action'],
+        },
+      for (final entry in list(coordination['external']).asMap().entries)
+        {
+          'id': 'external-${entry.key}',
+          'who': obj(entry.value)['who'],
+          'action': obj(entry.value)['action'],
+        },
+    ];
+    final acknowledged = partners
+        .where((partner) => partnerStatuses[partner['id']] == 'acknowledged')
+        .length;
+    final blocked = partners
+        .where((partner) => partnerStatuses[partner['id']] == 'blocked')
+        .length;
+    return panel(
+      t('ONE CASE · SHARED COORDINATION', 'একটি case · সবার সমন্বয়'),
+      t('Departments and partners', 'বিভাগ ও অংশীদার'),
+      [
+        paragraph(
+          '${t('Case coordinator', 'সমন্বয়ের দায়িত্ব')}: '
+          '${copy(item['owner'])}',
+        ),
+        paragraph(
+          '$acknowledged/${partners.length} '
+          '${t('acknowledged', 'সাড়া দিয়েছে')} · $blocked '
+          '${t('blocked', 'বাধা')} · '
+          '${partners.length - acknowledged - blocked} '
+          '${t('waiting', 'অপেক্ষায়')}',
+        ),
+        for (final partner in partners)
+          ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(copy(partner['who'])),
-            subtitle: Text(
-              '${copy(partner['challenge'])}\n${copy(partner['response'])}',
+            subtitle: Text(copy(partner['action'])),
+            trailing: DropdownButton<String>(
+              value: partnerStatuses[partner['id']] ?? 'waiting',
+              items: [
+                DropdownMenuItem(
+                  value: 'waiting',
+                  child: Text(t('Waiting', 'বাকি')),
+                ),
+                DropdownMenuItem(
+                  value: 'acknowledged',
+                  child: Text(t('Ack', 'সাড়া')),
+                ),
+                DropdownMenuItem(
+                  value: 'blocked',
+                  child: Text(t('Blocked', 'বাধা')),
+                ),
+              ],
+              onChanged: (value) => setState(
+                () => partnerStatuses[partner['id'].toString()] =
+                    value ?? 'waiting',
+              ),
             ),
-          );
-        }),
-        const Divider(height: 1),
+          ),
+        if (blocked > 0 || acknowledged < partners.length)
+          paragraph(
+            '${t('Escalation', 'এস্কালেশন')}: '
+            '${copy(coordination['escalation'])}',
+          ),
+        OutlinedButton.icon(
+          onPressed: () => setState(() => showPublicUpdate = !showPublicUpdate),
+          icon: const Icon(Icons.message_outlined),
+          label: Text(
+            showPublicUpdate
+                ? t('Hide citizen update draft', 'নাগরিক update-এর খসড়া লুকান')
+                : t(
+                    'Preview citizen update draft',
+                    'নাগরিক update-এর খসড়া দেখুন',
+                  ),
+          ),
+        ),
+        if (showPublicUpdate) ...[
+          paragraph(copy(coordination['publicUpdate'])),
+          paragraph(
+            t(
+              'Preview only. An authorized officer sends a verified update through the real incident workflow.',
+              'শুধু preview। যাচাই করা update অনুমোদিত কর্মকর্তা বাস্তব incident workflow দিয়ে পাঠাবেন.',
+            ),
+          ),
+        ],
       ],
-    ]),
+    );
+  }
+
+  List<Widget> follow(
+    Map<String, dynamic> item,
+    bool allDone,
+    bool allChecked,
+  ) => [
+    panel(
+      t('PREVENT · REPRIORITIZE', 'আগে ব্যবস্থা · নতুন অগ্রাধিকার'),
+      t('What changed?', 'পরিস্থিতি বদলালে কী করবেন?'),
+      [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(t('Heavy rain forecast', 'ভারী বৃষ্টির পূর্বাভাস')),
+          value: rain,
+          onChanged: (value) => setState(() => rain = value),
+        ),
+        if (rain) paragraph(copy(item['prevention'])),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(t('Emergency rehearsal', 'জরুরি অবস্থার অনুশীলন')),
+          value: crisis,
+          onChanged: (value) => setState(() => crisis = value),
+        ),
+        if (crisis) ...[
+          paragraph(copy(item['crisis'])),
+          paragraph(
+            t(
+              'An officer approves any change to active missions.',
+              'চলমান mission বদলালে কর্মকর্তা অনুমোদন করবেন।',
+            ),
+          ),
+        ],
+      ],
+    ),
+    panel(
+      t('CHECK THE RESULT', 'ফল যাচাই'),
+      t('Completion needs evidence', 'কাজ শেষের প্রমাণ দরকার'),
+      [
+        for (final entry in list(item['verify']).asMap().entries)
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: checked.contains(entry.key),
+            onChanged: allDone
+                ? (value) => setState(() {
+                    if (value == true) {
+                      checked.add(entry.key);
+                    } else {
+                      checked.remove(entry.key);
+                      watchScheduled = false;
+                    }
+                  })
+                : null,
+            title: Text(copy(entry.value)),
+          ),
+        paragraph(
+          allChecked
+              ? t(
+                  'Sample result checked. Revisit after rain or at the same busy hour.',
+                  'নমুনা ফল যাচাই হয়েছে। বৃষ্টি বা একই ব্যস্ত সময়ে আবার দেখুন।',
+                )
+              : allDone
+              ? t(
+                  'Now check the submitted field work.',
+                  'এখন মাঠের জমা দেওয়া কাজ যাচাই করুন।',
+                )
+              : t(
+                  'First approve and submit every sample team task.',
+                  'আগে নমুনা mission অনুমোদন করে দলের সব কাজ জমা দিন।',
+                ),
+        ),
+      ],
+    ),
+    panel(
+      t('REPEAT-ISSUE WATCH', 'পুনরাবৃত্তি নজরদারি'),
+      t('Check beyond the first completion', 'প্রথম সমাপ্তির পরেও দেখুন'),
+      [
+        paragraph(
+          '${t('When', 'কখন')}: ${copy(obj(item['watch'])['trigger'])}',
+        ),
+        paragraph(
+          '${t('Where', 'কোথায়')}: ${copy(obj(item['watch'])['location'])}',
+        ),
+        paragraph(copy(obj(item['watch'])['reason'])),
+        FilledButton.tonal(
+          onPressed: allChecked && !watchScheduled
+              ? () => setState(() => watchScheduled = true)
+              : null,
+          child: Text(
+            watchScheduled
+                ? t('Sample follow-up scheduled', 'নমুনা follow-up নির্ধারিত')
+                : t('Schedule sample follow-up', 'নমুনা follow-up নির্ধারণ'),
+          ),
+        ),
+        if (watchScheduled) ...[
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () => setState(() {
+              watchAlert = true;
+              watchScheduled = false;
+              focusTask = (obj(item['watch'])['taskIndex'] as num).toInt();
+              approved = false;
+              assigned.clear();
+              done.clear();
+              checked.clear();
+              step = 3;
+              _scrollTop();
+            }),
+            child: Text(
+              t(
+                'Rehearse a repeat issue nearby',
+                'পাশে পুনরাবৃত্তির সংকেত অনুশীলন',
+              ),
+            ),
+          ),
+        ],
+        paragraph(
+          t(
+            'No real reminder or task is created here.',
+            'এখানে বাস্তব reminder বা কাজ তৈরি হয় না।',
+          ),
+        ),
+      ],
+    ),
+    panel(
+      t('PILOT OWNERSHIP', 'পাইলটের দায়িত্ব'),
+      t('Who handles the difficult parts?', 'কঠিন বিষয়গুলো কে সামলাবে?'),
+      [
+        for (final raw in list(seed!['stakeholders'])) ...[
+          Builder(
+            builder: (context) {
+              final partner = obj(raw);
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(copy(partner['who'])),
+                subtitle: Text(
+                  '${copy(partner['challenge'])}\n${copy(partner['response'])}',
+                ),
+              );
+            },
+          ),
+          const Divider(height: 1),
+        ],
+      ],
+    ),
   ];
 }
