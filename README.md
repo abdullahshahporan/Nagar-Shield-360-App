@@ -15,6 +15,7 @@ Flutter client for the existing NagarShield 360 Supabase project. Flutter code, 
 - lib/ui/sign_in_page.dart: official account sign in.
 - lib/ui/local_demo_page.dart: offline role chain.
 - lib/ui/official_pages.dart: role-aware navigation, incident review, map, and governance.
+- lib/ui/operations_lab.dart: local, bilingual connected-operations rehearsal from shared dummy seed; also available from the offline Local Demo entry.
 - lib/ui/official_overview.dart, official_task_list.dart, official_report_view.dart: shared-data dashboard, assigned work, and reports.
 - lib/ui/incident_detail.dart, observation_review_card.dart, private_evidence_preview.dart, workflow_labels.dart: named assignment, evidence, review, audit, and Bangla/English workflow labels.
 - lib/ui/public_status_card.dart: citizen report progress.
@@ -22,6 +23,7 @@ Flutter client for the existing NagarShield 360 Supabase project. Flutter code, 
 - lib/ui/survey_page.dart and survey_annotation_editor.dart: drone and GapScan observation entry with normalized image polygons and timed video boxes.
 - lib/ui/staff_queue_page.dart: queued and rejected official work.
 - assets/presets: mobile copies of the six web preset illustrations and two clips.
+- assets/operations-seed.json: the same three illustrative cases as the official web operations workspace.
 - supabase/mobile_extension.sql: additive shared backend migration.
 - supabase/mobile_extension_2.sql: idempotent staff action receipts and evidence retries.
 - SHOWCASE_TEST_PLAN.md: mobile-led complaint-to-completion run sheet.
@@ -69,5 +71,7 @@ The output APKs are in dist/. A build without Supabase defines still runs the is
 The live checks write clearly named synthetic records into the shared project. The local SQL check reads the baseline migrations and PGlite from ../NagarShield-360; set NAGAR_WEB_DIR for another web checkout. It does not write to that checkout. iOS builds require a macOS runner.
 
 ## Scope and limits
+
+The City Operations screen demonstrates source quality, possible duplicates, asset links, explainable priority, multi-team planning, pre-rain/crisis changes, result checks and stakeholder ownership. All controls on that screen use temporary local state; they do not write to Supabase or control cameras or drones. For a no-login presentation, open **Local Demo → City Operations**. The signed-in official screen uses the same seed. Real reports and assignments remain in the existing shared incident/task flow.
 
 Public form drafts, selected photos, queued reports, and official actions persist on device. Reports and actions retry after launch, resume, and manual refresh. Rejected official actions appear in Sync queue for review. Supabase is authoritative after submission. Officials review public and survey observations before incidents exist. Detection overlays and scores are simulated; imported images support manual boxes and polygons, and MP4 supports timed boxes. Drone and GapScan record observations but do not control hardware or run AI inference. The local presentation scenario has separate SQLite state; Reset Demo affects only that state. The live API workflow has been tested; physical two-device UI rehearsal and iOS CI still need to be run.
