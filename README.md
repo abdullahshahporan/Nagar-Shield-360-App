@@ -16,6 +16,7 @@ Flutter client for the existing NagarShield 360 Supabase project. Flutter code, 
 - lib/ui/local_demo_page.dart: offline role chain.
 - lib/ui/official_pages.dart: role-aware navigation, incident review, map, and governance.
 - lib/ui/operations_lab.dart: local, bilingual connected-operations rehearsal from shared dummy seed; also available from the offline Local Demo entry.
+- lib/ui/operations_map.dart: interactive schematic ward/drain map, asset selection and sample drone survey route.
 - lib/ui/official_overview.dart, official_task_list.dart, official_report_view.dart: shared-data dashboard, assigned work, and reports.
 - lib/ui/incident_detail.dart, observation_review_card.dart, private_evidence_preview.dart, workflow_labels.dart: named assignment, evidence, review, audit, and Bangla/English workflow labels.
 - lib/ui/public_status_card.dart: citizen report progress.
@@ -72,6 +73,6 @@ The live checks write clearly named synthetic records into the shared project. T
 
 ## Scope and limits
 
-The City Operations screen demonstrates source quality, possible duplicates, asset links, explainable priority, multi-team planning, pre-rain/crisis changes, result checks and stakeholder ownership. All controls on that screen use temporary local state; they do not write to Supabase or control cameras or drones. For a no-login presentation, open **Local Demo → City Operations**. The signed-in official screen uses the same seed. Real reports and assignments remain in the existing shared incident/task flow.
+The City Operations screen demonstrates source quality, possible duplicates, mapped drain flow and camera points, a permission-gated sample drone route, sample footage review, explainable priority, map-selected multi-team tasks, pre-rain/crisis changes, result checks and stakeholder ownership. All controls on that screen use temporary local state; they do not write to Supabase or control cameras or drones. For a no-login presentation, open **Local Demo → City Operations**. The signed-in official screen uses the same seed. Real reports and assignments remain in the existing shared incident/task flow. The canonical [unified engineering roadmap](https://github.com/abdullahshahporan/NagarShield-360/blob/master/docs/UNIFIED_CITY_OPERATIONS_ROADMAP.md) defines the next data contract, stakeholder decisions and pilot gates.
 
 Public form drafts, selected photos, queued reports, and official actions persist on device. Reports and actions retry after launch, resume, and manual refresh. Rejected official actions appear in Sync queue for review. Supabase is authoritative after submission. Officials review public and survey observations before incidents exist. Detection overlays and scores are simulated; imported images support manual boxes and polygons, and MP4 supports timed boxes. Drone and GapScan record observations but do not control hardware or run AI inference. The local presentation scenario has separate SQLite state; Reset Demo affects only that state. The live API workflow has been tested; physical two-device UI rehearsal and iOS CI still need to be run.

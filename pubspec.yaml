@@ -67,7 +67,6 @@ flutter:
   assets:
     - assets/presets/
     - assets/operations-seed.json
-    - assets/operations-seed.json
 
   # To add assets to your application, add an assets section, like this:
   # assets:

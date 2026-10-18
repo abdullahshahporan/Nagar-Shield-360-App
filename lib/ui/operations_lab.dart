@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'operations_map.dart';
+import 'preset_media.dart';
 
 /// A local rehearsal of the proposed planning loop. It never writes to Supabase.
 /// The real incident and task workflow remains in OfficialPages.
@@ -18,22 +20,36 @@ class OperationsLab extends StatefulWidget {
 class _OperationsLabState extends State<OperationsLab> {
   static const green = Color(0xFF173F35);
   static const mint = Color(0xFFE8F3E8);
+  final ScrollController scrollController = ScrollController();
   Map<String, dynamic>? seed;
   String? loadError;
   int caseIndex = 0;
   int step = 0;
   String? choice;
   bool approved = false;
+  bool showFlight = true;
+  bool flightPermission = false;
+  bool surveyComplete = false;
   bool rain = false;
   bool crisis = false;
+  String? selectedAssetId;
+  int? focusTask;
+  int mediaIndex = 0;
+  final Set<int> assigned = {};
   final Set<int> done = {};
   final Set<int> checked = {};
+  final Set<String> usedEvidence = {};
 
   @override
   void initState() {
     super.initState();
     rootBundle.loadString('assets/operations-seed.json').then((value) {
-      if (mounted) setState(() => seed = jsonDecode(value) as Map<String, dynamic>);
+      if (mounted) {
+        setState(() {
+          seed = jsonDecode(value) as Map<String, dynamic>;
+          _resetCase();
+        });
+      }
     }).catchError((Object error) {
       if (mounted) setState(() => loadError = error.toString());
     });
@@ -57,9 +73,18 @@ class _OperationsLabState extends State<OperationsLab> {
               2)
           .round();
 
+  int evidenceBoost(String optionId) => list(current['media'])
+      .map(obj)
+      .where((media) =>
+          usedEvidence.contains(media['id']) && media['optionId'] == optionId)
+      .fold(0, (total, media) => total + (media['boost'] as num).toInt());
+
+  int recommendationScore(Map<String, dynamic> option) =>
+      (score(option) + evidenceBoost(option['id'].toString())).clamp(0, 100).toInt();
+
   List<Map<String, dynamic>> get ranked {
     final values = list(current['options']).map(obj).toList();
-    values.sort((a, b) => score(b).compareTo(score(a)));
+    values.sort((a, b) => recommendationScore(b).compareTo(recommendationScore(a)));
     return values;
   }
 
@@ -68,16 +93,45 @@ class _OperationsLabState extends State<OperationsLab> {
     orElse: () => ranked.first,
   );
 
-  void reset([int? next]) => setState(() {
-    caseIndex = next ?? caseIndex;
+  void _resetCase() {
     step = 0;
     choice = null;
     approved = false;
+    showFlight = true;
+    flightPermission = false;
+    surveyComplete = false;
     rain = false;
     crisis = false;
+    focusTask = null;
+    mediaIndex = 0;
+    final item = current;
+    selectedAssetId = obj(list(obj(item['map'])['assets']).first)['id'].toString();
+    usedEvidence
+      ..clear()
+      ..addAll(list(item['media'])
+          .map(obj)
+          .where((media) => media['initiallyUsed'] == true)
+          .map((media) => media['id'].toString()));
+    assigned.clear();
     done.clear();
     checked.clear();
+  }
+
+  void reset([int? next]) => setState(() {
+    caseIndex = next ?? caseIndex;
+    _resetCase();
+    _scrollTop();
   });
+
+  void _scrollTop() => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted && scrollController.hasClients) scrollController.jumpTo(0);
+  });
+
+  @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
+  }
 
   Widget panel(String eyebrow, String title, List<Widget> children) => Card(
     margin: const EdgeInsets.only(bottom: 12),
@@ -128,12 +182,14 @@ class _OperationsLabState extends State<OperationsLab> {
     final allDone = done.length == list(item['tasks']).length;
     final allChecked = checked.length == list(item['verify']).length;
     const stepIcons = [
+      Icons.map_outlined,
       Icons.visibility_outlined,
       Icons.account_tree_outlined,
       Icons.groups_outlined,
       Icons.fact_check_outlined,
     ];
     final stepLabels = [
+      t('Map & survey', 'মানচিত্র ও জরিপ'),
       t('Observe', 'দেখুন'),
       t('Decide', 'সিদ্ধান্ত'),
       t('Mission', 'কাজ'),
@@ -141,6 +197,7 @@ class _OperationsLabState extends State<OperationsLab> {
     ];
 
     return ListView(
+      controller: scrollController,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
         Container(
@@ -242,15 +299,40 @@ class _OperationsLabState extends State<OperationsLab> {
                 avatar: Icon(stepIcons[index], size: 16),
                 label: Text('${index + 1}. ${stepLabels[index]}'),
                 selected: step == index,
-                onSelected: (_) => setState(() => step = index),
+                onSelected: (_) {
+                  setState(() => step = index);
+                  _scrollTop();
+                },
               ),
           ],
         ),
         const SizedBox(height: 14),
-        if (step == 0) ...observe(item),
-        if (step == 1) ...decide(item),
-        if (step == 2) ...mission(item),
-        if (step == 3) ...follow(item, allDone, allChecked),
+        if (step == 0)
+          OperationsMap(
+            map: obj(item['map']),
+            tasks: list(item['tasks']),
+            bangla: widget.bangla,
+            selectedId: selectedAssetId!,
+            onSelect: (value) => setState(() => selectedAssetId = value),
+            showFlight: showFlight,
+            onFlightToggle: () => setState(() => showFlight = !showFlight),
+            permission: flightPermission,
+            onPermission: (value) => setState(() {
+              flightPermission = value;
+              if (!value) surveyComplete = false;
+            }),
+            surveyComplete: surveyComplete,
+            onSurveyComplete: () => setState(() => surveyComplete = true),
+            onDraftTask: (index) => setState(() {
+              focusTask = index;
+              step = 3;
+              _scrollTop();
+            }),
+          ),
+        if (step == 1) ...observe(item),
+        if (step == 2) ...decide(item),
+        if (step == 3) ...mission(item),
+        if (step == 4) ...follow(item, allDone, allChecked),
         OutlinedButton.icon(
           onPressed: () => reset(),
           icon: const Icon(Icons.restart_alt),
@@ -261,6 +343,7 @@ class _OperationsLabState extends State<OperationsLab> {
   }
 
   List<Widget> observe(Map<String, dynamic> item) => [
+    mediaReview(item),
     panel(
       t('SOURCE · AGE · LIMIT', 'উৎস · সময় · সীমা'),
       t('One place, several signals', 'এক জায়গা, কয়েকটি খবর'),
@@ -299,6 +382,84 @@ class _OperationsLabState extends State<OperationsLab> {
     ]),
   ];
 
+  Widget mediaReview(Map<String, dynamic> item) {
+    final media = list(item['media']).map(obj).toList();
+    final selectedMedia = media[mediaIndex];
+    final box = list(selectedMedia['box']);
+    return panel(
+      t('SAMPLE FOOTAGE · HUMAN REVIEW', 'নমুনা footage · মানুষের যাচাই'),
+      t('What does the footage actually show?', 'footage-এ আসলে কী দেখা যায়?'),
+      [
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (var index = 0; index < media.length; index++)
+              ChoiceChip(
+                selected: mediaIndex == index,
+                label: Text('${source(media[index]['source'].toString())} · ${media[index]['age']}'),
+                onSelected: (_) => setState(() => mediaIndex = index),
+              ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        SizedBox(
+          height: 210,
+          child: LayoutBuilder(builder: (context, constraints) => Stack(
+            children: [
+              Positioned.fill(
+                child: PresetMedia(
+                  key: ValueKey(selectedMedia['id']),
+                  id: selectedMedia['preset'].toString(),
+                  isVideo: selectedMedia['kind'] == 'video',
+                  bangla: widget.bangla,
+                ),
+              ),
+              Positioned(
+                left: (box[0] as num).toDouble() * constraints.maxWidth / 100,
+                top: (box[1] as num).toDouble() * 2.1,
+                width: (box[2] as num).toDouble() * constraints.maxWidth / 100,
+                height: (box[3] as num).toDouble() * 2.1,
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0x44C4E984),
+                      border: Border.all(color: const Color(0xFFC4E984), width: 2),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          )),
+        ),
+        const SizedBox(height: 10),
+        paragraph('${t('Sample confidence', 'নমুনা confidence')}: ${((selectedMedia['confidence'] as num) * 100).round()}% · ${selectedMedia['timeRange']}'),
+        paragraph(copy(selectedMedia['finding'])),
+        paragraph('${t('Limit', 'সীমা')}: ${copy(selectedMedia['limit'])}'),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          value: usedEvidence.contains(selectedMedia['id']),
+          onChanged: (value) => setState(() {
+            value == true
+                ? usedEvidence.add(selectedMedia['id'].toString())
+                : usedEvidence.remove(selectedMedia['id'].toString());
+            choice = null;
+            approved = false;
+            assigned.clear();
+            done.clear();
+            checked.clear();
+          }),
+          title: Text(t('Use this evidence in the recommendation',
+              'এই evidence পরামর্শে ধরুন')),
+        ),
+        paragraph(t(
+          'Boxes and confidence are seeded examples, not live AI inference.',
+          'box ও confidence নমুনা; লাইভ AI শনাক্তকরণ নয়।',
+        )),
+      ],
+    );
+  }
+
   List<Widget> decide(Map<String, dynamic> item) => [
     panel(t('HYPOTHESIS · HUMAN CHECK', 'ধারণা · মানুষের যাচাই'),
         copy(item['hypothesis']), [
@@ -311,12 +472,30 @@ class _OperationsLabState extends State<OperationsLab> {
         ),
         child: Text(copy(item['fieldCheck'])),
       ),
+      const SizedBox(height: 9),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF2DF),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(usedEvidence.isEmpty
+            ? t('No footage was accepted. Check the site before setting priority.',
+                'কোনো footage গ্রহণ করা হয়নি। অগ্রাধিকার দেওয়ার আগে মাঠে দেখুন।')
+            : list(item['media']).map(obj).any((media) =>
+                    usedEvidence.contains(media['id']) &&
+                    (media['confidence'] as num) < .7)
+                ? t('Some accepted evidence is uncertain or old. Review the limits.',
+                    'গ্রহণ করা কিছু evidence অনিশ্চিত বা পুরোনো। সীমা দেখে সিদ্ধান্ত নিন।')
+                : t('Footage still cannot confirm the root cause without a site check.',
+                    'মাঠে না দেখে footage দিয়ে মূল কারণ নিশ্চিত করা যায় না।')),
+      ),
     ]),
     panel(t('EXPLAINED PRIORITY', 'কারণসহ অগ্রাধিকার'),
         t('Where should the team check first?', 'দল আগে কোথায় দেখবে?'), [
       paragraph(t(
-        'Illustrative score: reach 40%, safety 30%, recurrence 20%, access 10%. An officer may override it.',
-        'নমুনা তুলনা: প্রভাব ৪০%, নিরাপত্তা ৩০%, পুনরাবৃত্তি ২০%, প্রবেশ ১০%। কর্মকর্তা চাইলে বদলাতে পারেন।',
+        'Illustrative score: reach 40%, safety 30%, recurrence 20%, access 10%, plus small adjustments from reviewed footage. An officer may override it.',
+        'নমুনা তুলনা: প্রভাব ৪০%, নিরাপত্তা ৩০%, পুনরাবৃত্তি ২০%, প্রবেশ ১০%; review করা footage থেকে ছোট পরিবর্তন যোগ হয়। কর্মকর্তা চাইলে বদলাতে পারেন।',
       )),
       for (final option in ranked)
         ListTile(
@@ -327,21 +506,46 @@ class _OperationsLabState extends State<OperationsLab> {
                 : Icons.radio_button_unchecked,
             color: const Color(0xFF267956),
           ),
-          title: Text('${copy(option['title'])} · ${score(option)}/100'),
-          subtitle: Text(copy(option['why'])),
+          title: Text('${copy(option['title'])} · ${recommendationScore(option)}/100'),
+          subtitle: Text('${copy(option['why'])}\n${t('Base', 'মূল')} ${score(option)} + evidence ${evidenceBoost(option['id'].toString())}'),
           onTap: () => setState(() {
             choice = option['id'].toString();
             approved = false;
+            assigned.clear();
             done.clear();
             checked.clear();
           }),
         ),
+      const Divider(),
+      Text(t('Evidence behind this choice', 'এই পছন্দের পেছনের evidence'),
+          style: const TextStyle(fontWeight: FontWeight.w800)),
+      for (final raw in list(item['media']).map(obj).where((media) =>
+          usedEvidence.contains(media['id']) &&
+          media['optionId'] == selected['id']))
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text('+${raw['boost']} · ${copy(raw['finding'])}'),
+          subtitle: Text('${source(raw['source'].toString())}: ${copy(raw['limit'])}'),
+        ),
+      paragraph(t('These are reviewable suggestions, not a validated risk model.',
+          'এগুলো যাচাইযোগ্য পরামর্শ, যাচাইকৃত risk model নয়।')),
     ]),
   ];
 
   List<Widget> mission(Map<String, dynamic> item) => [
     panel(t('ONE CASE OWNER', 'একজন মূল দায়িত্বশীল'),
         t('One coordinated mission', 'একটি সমন্বিত কাজ'), [
+      if (focusTask != null)
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF3DC),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Text('${t('Selected on map', 'মানচিত্রে বাছা')}: '
+              '${copy(obj(list(item['tasks'])[focusTask!])['team'])} · '
+              '${copy(obj(list(item['tasks'])[focusTask!])['action'])}'),
+        ),
       paragraph('${t('Owner', 'দায়িত্ব')}: ${copy(item['owner'])}'),
       paragraph('${t('First check', 'আগে পরীক্ষা')}: ${copy(selected['title'])}'),
       paragraph('${t('Resources', 'দল ও সরঞ্জাম')}: ${copy(item['resources'])}'),
@@ -350,6 +554,7 @@ class _OperationsLabState extends State<OperationsLab> {
         onPressed: () => setState(() {
           approved = !approved;
           if (!approved) {
+            assigned.clear();
             done.clear();
             checked.clear();
           }
@@ -363,22 +568,48 @@ class _OperationsLabState extends State<OperationsLab> {
       paragraph(t('This does not assign a real task or write to Supabase.',
           'এতে বাস্তব দায়িত্ব দেওয়া হয় না বা Supabase-এ কিছু লেখা হয় না।')),
     ]),
-    panel(t('TEAM UPDATES', 'দলের update'),
-        '${done.length}/${list(item['tasks']).length} ${t('sample tasks submitted', 'নমুনা কাজ জমা')}', [
+    panel(t('MAP → ASSIGNMENT → UPDATE', 'মানচিত্র → দায়িত্ব → update'),
+        '${assigned.length} ${t('assigned', 'দায়িত্ব দেওয়া')} · ${done.length} ${t('submitted', 'জমা')}', [
       for (final entry in list(item['tasks']).asMap().entries)
         Builder(builder: (context) {
           final task = obj(entry.value);
-          return CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            value: done.contains(entry.key),
-            onChanged: approved
-                ? (value) => setState(() {
-                    value == true ? done.add(entry.key) : done.remove(entry.key);
-                    checked.clear();
-                  })
-                : null,
-            title: Text(copy(task['team'])),
-            subtitle: Text(copy(task['action'])),
+          return Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: focusTask == entry.key
+                  ? const Color(0xFFFFF3DC)
+                  : const Color(0xFFF2F7F1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(copy(task['team']),
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                Text(copy(task['action'])),
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: approved
+                      ? () => setState(() {
+                          if (!assigned.contains(entry.key)) {
+                            assigned.add(entry.key);
+                          } else if (!done.contains(entry.key)) {
+                            done.add(entry.key);
+                          } else {
+                            done.remove(entry.key);
+                            checked.clear();
+                          }
+                        })
+                      : null,
+                  child: Text(done.contains(entry.key)
+                      ? t('Submitted · reopen', 'জমা · আবার খুলুন')
+                      : assigned.contains(entry.key)
+                          ? t('Assigned · submit update', 'দেওয়া · update দিন')
+                          : t('Assign sample team', 'নমুনা দলকে দায়িত্ব দিন')),
+                ),
+              ],
+            ),
           );
         }),
       paragraph(t('Use Incidents and Tasks for the real shared workflow.',

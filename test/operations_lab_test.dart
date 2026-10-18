@@ -17,20 +17,36 @@ void main() {
 
     expect(find.text('বাজার করিডর: বর্জ্য, ড্রেন ও হাঁটার পথ'), findsWidgets);
 
-    await tester.scrollUntilVisible(find.text('3. কাজ'), 230,
+    await tester.scrollUntilVisible(find.text('এই স্থাপনা থেকে কাজের খসড়া'), 230,
         scrollable: find.byType(Scrollable).first);
-    await tester.ensureVisible(find.text('3. কাজ'));
+    await tester.ensureVisible(find.text('এই স্থাপনা থেকে কাজের খসড়া'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('3. কাজ'));
+    await tester.tap(find.text('এই স্থাপনা থেকে কাজের খসড়া'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('নমুনা mission অনুমোদন'), 230,
-        scrollable: find.byType(Scrollable).first);
+    for (var attempt = 0;
+        attempt < 6 && find.text('নমুনা mission অনুমোদন').evaluate().isEmpty;
+        attempt++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -350));
+      await tester.pumpAndSettle();
+    }
     await tester.ensureVisible(find.text('নমুনা mission অনুমোদন'));
     await tester.pumpAndSettle();
     expect(find.text('একটি সমন্বিত কাজ'), findsOneWidget);
     await tester.tap(find.text('নমুনা mission অনুমোদন'));
     await tester.pumpAndSettle();
     expect(find.text('নমুনা অনুমোদন প্রত্যাহার'), findsOneWidget);
+    for (var attempt = 0;
+        attempt < 6 && find.text('নমুনা দলকে দায়িত্ব দিন').evaluate().isEmpty;
+        attempt++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -300));
+      await tester.pumpAndSettle();
+    }
+    final assign = find.text('নমুনা দলকে দায়িত্ব দিন').first;
+    await tester.ensureVisible(assign);
+    await tester.pumpAndSettle();
+    await tester.tap(assign);
+    await tester.pumpAndSettle();
+    expect(find.text('দেওয়া · update দিন'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
